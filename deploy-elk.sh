@@ -329,14 +329,14 @@ EOF" \
   --output none
 print_success "Elasticsearch configured with security"
 
-print_status "Setting Elasticsearch password..."
+print_status "Setting Elasticsearch passwords..."
 az vm run-command invoke \
   --resource-group "$RESOURCE_GROUP" \
   --name Elasticsearch-VM \
   --command-id RunShellScript \
   --scripts "echo 'elastic:${ELASTIC_PASSWORD}' | sudo /usr/share/elasticsearch/bin/elasticsearch-users useradd elastic -p ${ELASTIC_PASSWORD} -r superuser 2>/dev/null || echo 'y' | sudo /usr/share/elasticsearch/bin/elasticsearch-reset-password -u elastic -i -b --password ${ELASTIC_PASSWORD}" \
   --output none
-print_success "Elasticsearch password set"
+print_success "Elastic user password set"
 
 print_status "Starting Elasticsearch..."
 az vm run-command invoke \
@@ -350,6 +350,16 @@ print_success "Elasticsearch started"
 print_status "Waiting for Elasticsearch to be ready (30 seconds)..."
 sleep 30
 print_success "Elasticsearch should be ready"
+
+print_status "Setting kibana_system user password..."
+az vm run-command invoke \
+  --resource-group "$RESOURCE_GROUP" \
+  --name Elasticsearch-VM \
+  --command-id RunShellScript \
+  --scripts "echo '${ELASTIC_PASSWORD}
+${ELASTIC_PASSWORD}' | sudo /usr/share/elasticsearch/bin/elasticsearch-reset-password -u kibana_system -i -b" \
+  --output none
+print_success "Kibana system user password set"
 
 ################################################################################
 # Install and Configure Filebeat
@@ -436,22 +446,11 @@ server.port: 5601
 server.name: \"kibana-soc\"
 
 elasticsearch.hosts: [\"http://${ES_PRIVATE_IP}:9200\"]
-elasticsearch.username: \"elastic\"
+elasticsearch.username: \"kibana_system\"
 elasticsearch.password: \"${ELASTIC_PASSWORD}\"
-
-# Enable logging
-logging.dest: /var/log/kibana/kibana.log
 EOF" \
   --output none
 print_success "Kibana configured"
-
-print_status "Creating Kibana log directory..."
-az vm run-command invoke \
-  --resource-group "$RESOURCE_GROUP" \
-  --name Kibana-VM \
-  --command-id RunShellScript \
-  --scripts "sudo mkdir -p /var/log/kibana && sudo chown kibana:kibana /var/log/kibana" \
-  --output none
 
 print_status "Starting Kibana..."
 az vm run-command invoke \
